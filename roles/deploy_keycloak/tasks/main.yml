@@ -1,0 +1,13 @@
+---
+# tasks file for deploy_rhsso
+- name: deploy keycloak container
+  containers.podman.podman_container:
+    name: keycloak
+    image: jboss/keycloak
+    command: -b 0.0.0.0
+    publish:
+      - 80:8080
+      - 443:8443
+    env:
+      KEYCLOAK_USER: "{{ rhsso_config.admin_username }}"
+      KEYCLOAK_PASSWORD: "{{ rhsso_config.admin_password }}"

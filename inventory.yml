@@ -1,0 +1,77 @@
+---
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+  children:
+    lab:
+      vars:
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+        ansible_user: root
+        ansible_password: 
+  vars:
+    hypervisor: vcenter # Either ovirt,vcenter
+    lab_suffix: # If not specified, a random 5 character string will be used
+    lab_dns_domain: local
+    vcenter_config:
+      hostname: vcenter.local
+      username: administrator@local
+      password: 
+      placement:
+        datacenter: Datacenter
+        cluster: Cluster
+        datastore: vsanDatastore
+        parent_folder: 
+        create_lab_folder: true
+      template: RHEL8.3_Gold
+      customization:
+        network: VM Network
+        dns_servers:
+          - 10.0.0.1
+    ovirt_config:
+      hostname: ovirt.local
+      username: admin
+      password: 
+      ca_file_path: # Leave blank for no ca file
+      placement:
+        cluster: Default
+      template: RHEL8.3_Gold
+    tower_config:
+      tower_version: 3.8.2-1 # 3.8.0-1 is the earliest supported version
+      tower_admin_password: 
+      tower_hub_admin_password: 
+      tower_db_password: 
+    rhsso_config:
+      admin_username: admin
+      admin_password: 
+    satellite_username: admin
+    satellite_password: 
+    vm_list:
+      - name: "tower-{{ lab_id }}"
+        cpus: 2
+        memory: 4
+        groups:
+          - lab
+          - tower
+          - tower_controller # "Master" Tower node where the installer will run from
+          - tower_node
+      - name: "tower-hub-{{ lab_id }}"
+        cpus: 2
+        memory: 4
+        groups:
+          - lab
+          - tower
+          - tower_hub
+      - name: "tower-db-{{ lab_id }}"
+        cpus: 2
+        memory: 4
+        groups:
+          - lab
+          - tower
+          - tower_db
+      - name: "podman-{{ lab_id }}"
+        cpus: 2
+        memory: 4
+        groups:
+          - lab
+          - podman

@@ -1,0 +1,110 @@
+---
+- name: Login to oVirt
+  ovirt_auth:
+    hostname: "{{ ovirt_config.hostname }}"
+    username: "{{ ovirt_config.username }}"
+    password: "{{ ovirt_config.password }}"
+    ca_file: "{{ ovirt_config.ca_file_path | default(omit,true) }}"
+    insecure: yes
+
+- name: Create VM from template
+  ovirt_vm:
+    auth: "{{ ovirt_auth }}"
+    name: "{{ item.name }}"
+    cloud_init_persist: yes
+    cloud_init:
+      host_name: "{{ item.name }}"
+    template: "{{ ovirt_config.template }}"
+    cluster: "{{ ovirt_config.placement.cluster }}"
+    memory: "{{ item.memory }}GiB"
+    memory_guaranteed: "{{ item.memory }}GiB"
+    memory_max: "{{ item.memory }}GiB"
+    cpu_sockets: "{{ item.cpus }}"
+    cpu_cores: 1
+    cpu_threads: 1
+    state: present
+    fetch_nested: yes
+    wait: yes
+  loop: "{{ vm_list }}"
+  register: create_vms_status
+  async: 600
+  poll: 0
+
+- name: Wait for VM creation to finish
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: _jobs_create
+  until: _jobs_create.finished
+  delay: 5
+  retries: 60
+  with_items: "{{ create_vms_status.results }}"
+
+- name: vm info
+  ovirt_vm_info:
+    auth: "{{ ovirt_auth }}"
+    pattern: name={{ item.name }}
+    fetch_nested: yes
+    all_content: yes
+  register: vm_info
+  loop: "{{ vm_list }}"
+
+- name: Resize Disk
+  ovirt_disk:
+    id: "{{ item.ovirt_vms[0].disk_attachments[0].id }}"
+    vm_name: "{{ item.ovirt_vms[0].name }}"
+    size: "{{ vm_disk_size | string }}GiB"
+    sparse: yes
+    state: attached
+    wait: yes
+  loop: "{{ vm_info.results }}"
+  register: resize_vms_status
+  async: 600
+  poll: 0
+
+- name: Wait for disk resize to finish
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: _jobs_resize
+  until: _jobs_resize.finished
+  delay: 5
+  retries: 60
+  with_items: "{{ resize_vms_status.results }}"
+
+- name: Start VM
+  ovirt_vm:
+    auth: "{{ ovirt_auth }}"
+    name: "{{ item.name }}"
+    state: running
+    wait: yes
+  loop: "{{ vm_list }}"
+  register: start_vms_status
+  async: 600
+  poll: 0
+
+- name: Wait for VM to finish starting
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: _jobs_start
+  until: _jobs_start.finished
+  delay: 5
+  retries: 60
+  with_items: "{{ start_vms_status.results }}"
+  
+- name: Wait for ips to show
+  ovirt_vm_info:
+    auth: "{{ ovirt_auth }}"
+    pattern: name={{ item.name }}
+    fetch_nested: yes
+    nested_attributes:
+      - ips
+    all_content: yes
+  register: vm_ip_info
+  until: vm_ip_info.ovirt_vms[0].reported_devices[0].ips[0].address is defined
+  delay: 5
+  retries: 60
+  with_items: "{{ vm_list }}"
+
+- name: Logout from oVirt
+  ovirt_auth:
+    state: absent
+    ovirt_auth: "{{ ovirt_auth }}"

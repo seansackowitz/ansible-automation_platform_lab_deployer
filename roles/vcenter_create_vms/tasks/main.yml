@@ -1,0 +1,57 @@
+---
+- name: Create lab folder
+  community.vmware.vcenter_folder:
+    username: "{{ vcenter_config.username }}"
+    password: "{{ vcenter_config.password }}"
+    hostname: "{{ vcenter_config.hostname }}"
+    datacenter: "{{ vcenter_config.placement.datacenter }}"
+    parent_folder: "{{ vcenter_config.placement.parent_folder | default(omit) }}"
+    folder_name: "Tower Lab {{ lab_id }}"
+    folder_type: vm
+  when: vcenter_config.placement.create_lab_folder == true
+
+- set_fact:
+    vm_folder: "{{ vcenter_config.placement.parent_folder }}"
+  when: vcenter_config.placement.parent_folder is defined
+- set_fact:
+    vm_folder: "{% if vm_folder %}{{ vm_folder }}/{% endif %}Tower Lab {{ lab_id }}"
+  when: vcenter_config.placement.create_lab_folder == true
+
+- name: Create all VMs
+  community.vmware.vmware_guest:
+    username: "{{ vcenter_config.username }}"
+    password: "{{ vcenter_config.password }}"
+    hostname: "{{ vcenter_config.hostname }}"
+    datacenter: "{{ vcenter_config.placement.datacenter }}"
+    cluster: "{{ vcenter_config.placement.cluster }}"
+    folder: "{{ vm_folder | default(omit) }}"
+    template: "{{ vcenter_config.template }}"
+    disk:
+    - size_gb: 20
+      type: thin
+      datastore: "{{ vcenter_config.placement.datastore }}"
+    hardware:
+      memory_mb: "{{ item.memory * 1024 }}"
+      num_cpus: "{{ item.cpus }}"
+    customization:
+      hostname: "{{ item.name }}"
+      domain: "{{ lab_dns_domain }}"
+      dns_servers: "{{ vcenter_config.customization.dns_servers }}"
+    networks:
+      - name: "{{ vcenter_config.customization.network }}"
+    name: "{{ item.name }}"
+    state: poweredon
+    wait_for_ip_address: True
+  loop: "{{ vmware_vm_list }}"
+  register: create_vms_status
+  async: 600
+  poll: 0
+
+- name: Wait for all VMs to be online
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: _jobs_create
+  until: _jobs_create.finished
+  delay: 5
+  retries: 60
+  with_items: "{{ create_vms_status.results }}"

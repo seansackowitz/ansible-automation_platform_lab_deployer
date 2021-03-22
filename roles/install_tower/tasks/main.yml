@@ -1,0 +1,16 @@
+---
+- name: unarchive tower installer
+  ansible.builtin.unarchive:
+    src: https://releases.ansible.com/ansible-tower/setup-bundle/ansible-tower-setup-bundle-{{ tower_config.tower_version }}.tar.gz
+    dest: /root/
+    remote_src: yes
+
+- name: Template out ansible inventory file
+  ansible.builtin.template:
+    src: inventory.j2
+    dest: /root/ansible-tower-setup-bundle-{{ tower_config.tower_version }}/inventory
+
+- name: Run Tower installer
+  ansible.builtin.shell:
+    cmd: ./setup.sh
+    chdir: /root/ansible-tower-setup-bundle-{{ tower_config.tower_version }}

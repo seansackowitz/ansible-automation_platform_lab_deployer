@@ -1,0 +1,7 @@
+---
+collections:
+  - name: redhat_cop.tower_configuration
+  - name: community.vmware
+  - name: community.general
+  - name: ovirt.ovirt
+  - name: containers.podman

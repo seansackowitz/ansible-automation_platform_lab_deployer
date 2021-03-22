@@ -1,0 +1,55 @@
+---
+- name: Deploy lab environment
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Set the id to be used for the lab
+      set_fact:
+        lab_id: "{{ lab_suffix | default(lookup('password', '/dev/null chars=ascii_lowercase,digits length=5'), true) }}"
+
+    - ansible.builtin.include_role:
+        name: "{{ hypervisor }}_create_vms"
+      vars:
+        vmware_vm_list: "{{ vm_list }}"
+    
+    - ansible.builtin.add_host:
+        hostname: "{{ item.name }}.{{ lab_dns_domain }}"
+        groups: "{{ item.groups }}"
+      loop: "{{ vm_list }}"
+
+- name: Register and Subscribe all lab resources
+  hosts: lab
+  gather_facts: no
+  tasks:
+    - community.general.redhat_subscription:
+        state: present
+        username: "{{ satellite_username }}"
+        password: "{{ satellite_password }}"
+        pool: '^Employee SKU$'
+
+- name: Register and Subscribe tower-hub to Automation Platform
+  hosts: tower_hub
+  gather_facts: no
+  tasks:
+    - community.general.redhat_subscription:
+        state: present
+        username: "{{ satellite_username }}"
+        password: "{{ satellite_password }}"
+        pool: '^((Red Hat Ansible Automation.*)|Employee SKU)$'
+
+- name: Tower installer
+  hosts: tower_controller
+  gather_facts: no
+  tasks:
+    - ansible.builtin.include_role:
+        name: install_tower
+
+- name: Install podman
+  hosts: podman
+  gather_facts: no
+  tasks:
+    - ansible.builtin.include_role:
+        name: install_podman
+    
+    - ansible.builtin.include_role:
+        name: deploy_keycloak
