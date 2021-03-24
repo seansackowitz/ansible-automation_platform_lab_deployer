@@ -37,19 +37,20 @@
         password: "{{ satellite_password }}"
         pool: '^((Red Hat Ansible Automation.*)|Employee SKU)$'
 
-- name: Tower installer
-  hosts: tower_controller
-  gather_facts: no
-  tasks:
-    - ansible.builtin.include_role:
-        name: install_tower
-
 - name: Install podman
   hosts: podman
   gather_facts: no
   tasks:
     - ansible.builtin.include_role:
         name: install_podman
-    
     - ansible.builtin.include_role:
         name: deploy_keycloak
+
+- name: Tower installer
+  hosts: tower_controller
+  gather_facts: no
+  tasks:
+    - ansible.builtin.include_role:
+        name: install_tower
+    - ansible.builtin.include_role:
+        name: configure_tower

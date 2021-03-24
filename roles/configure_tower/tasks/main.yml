@@ -1,0 +1,33 @@
+---
+- name: Create a new token using username/password
+  awx.awx.tower_token:
+    tower_host: https://{{ groups['tower_controller'][0] }}
+    validate_certs: no
+    description: "Tower Token"
+    scope: "write"
+    state: present
+    tower_username: admin
+    tower_password: "{{ tower_config.tower_admin_password }}"
+
+- ansible.builtin.uri:
+    method: PATCH
+    body_format: json
+    url: https://{{ groups['tower_controller'][0] }}/api/v2/settings/system/
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ tower_token.token }}"
+    body:
+      TOWER_URL_BASE: "https://{{ groups['tower_controller'][0] }}"
+      SUBSCRIPTIONS_USERNAME: "{{ satellite_username }}"
+      SUBSCRIPTIONS_PASSWORD: "{{ satellite_password }}"
+
+- ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: https://{{ groups['tower_controller'][0] }}/api/v2/config/attach/
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ tower_token.token }}"
+    body:
+      pool_id: "8a85f99976622bce01766c2ca1873d6b"
+      eula_accepted: true
