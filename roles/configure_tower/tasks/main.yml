@@ -24,10 +24,22 @@
 - ansible.builtin.uri:
     method: POST
     body_format: json
+    url: https://{{ groups['tower_controller'][0] }}/api/v2/config/subscriptions/
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ tower_token.token }}"
+    body:
+      subscriptions_username: "{{ satellite_username }}"
+      subscriptions_password: "{{ satellite_password }}"
+  register: available_pools
+
+- ansible.builtin.uri:
+    method: POST
+    body_format: json
     url: https://{{ groups['tower_controller'][0] }}/api/v2/config/attach/
     validate_certs: no
     headers:
       Authorization: "Bearer {{ tower_token.token }}"
     body:
-      pool_id: "8a85f99976622bce01766c2ca1873d6b"
+      pool_id: "{{ available_pools.json[0].pool_id }}"
       eula_accepted: true

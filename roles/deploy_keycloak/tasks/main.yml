@@ -11,3 +11,8 @@
     env:
       KEYCLOAK_USER: "{{ rhsso_config.admin_username }}"
       KEYCLOAK_PASSWORD: "{{ rhsso_config.admin_password }}"
+  
+- name: Wait for keycloak to start up
+  wait_for:
+    port: 443
+    delay: 10

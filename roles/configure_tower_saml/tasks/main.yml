@@ -1,0 +1,57 @@
+---
+- name: Create a new token using username/password
+  awx.awx.tower_token:
+    tower_host: https://{{ groups['tower_controller'][0] }}
+    validate_certs: no
+    description: "Tower Token"
+    scope: "write"
+    state: present
+    tower_username: admin
+    tower_password: "{{ tower_config.tower_admin_password }}"
+
+- ansible.builtin.uri:
+    method: PUT
+    body_format: json
+    url: https://{{ groups['tower_controller'][0] }}/api/v2/settings/saml/
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ tower_token.token }}"
+    body:
+      SOCIAL_AUTH_SAML_SP_ENTITY_ID: "{{ groups['tower_controller'][0] }}"
+      SOCIAL_AUTH_SAML_SP_PUBLIC_CERT: "-----BEGIN CERTIFICATE-----{{ hostvars[groups['podman'][0]].saml_client_attributes.attributes['saml.signing.certificate'] }}-----END CERTIFICATE-----"
+      SOCIAL_AUTH_SAML_SP_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----{{ hostvars[groups['podman'][0]].saml_client_attributes.attributes['saml.signing.private.key'] }}-----END PRIVATE KEY-----"
+      SOCIAL_AUTH_SAML_ORG_INFO:
+        en-US:
+          url: https://someinfo.com
+          displayname: some display name
+          name: some other name
+      SOCIAL_AUTH_SAML_TECHNICAL_CONTACT:
+        givenName: Some Contact
+        emailAddress: email@someinfo.com
+      SOCIAL_AUTH_SAML_SUPPORT_CONTACT:
+        givenName: Some Contact
+        emailAddress: email@someinfo.com
+      SOCIAL_AUTH_SAML_ENABLED_IDPS:
+        idp:
+          attr_last_name: last_name
+          attr_username: username
+          url: "https://{{ groups['podman'][0] }}/auth/realms/AAP/protocol/saml"
+          attr_user_permanent_id: name_id
+          entity_id: "https://{{ groups['podman'][0] }}/auth/realms/AAP"
+          attr_email: email
+          x509cert: "{{ hostvars[groups['podman'][0]].saml_realm_x509cert.certificate }}"
+          attr_first_name: first_name
+      SOCIAL_AUTH_SAML_ORGANIZATION_MAP:
+        Default:
+          users: true
+      SOCIAL_AUTH_SAML_ORGANIZATION_ATTR:
+        saml_attr: department
+        saml_admin_attr: department
+        remove: true
+        remove_admins: false
+      SOCIAL_AUTH_SAML_TEAM_ATTR:
+        saml_attr: role
+        remove: false
+        team_org_map:
+          - team: development
+            organization: platform

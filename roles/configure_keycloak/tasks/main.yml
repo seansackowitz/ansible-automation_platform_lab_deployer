@@ -1,0 +1,173 @@
+---
+- name: Get Keycloak token
+  ansible.builtin.uri:
+    method: POST
+    body_format: form-urlencoded
+    url: "https://{{ groups['podman'][0] }}/auth/realms/master/protocol/openid-connect/token"
+    validate_certs: no
+    body:
+      username: "{{ rhsso_config.admin_username }}"
+      password: "{{ rhsso_config.admin_password }}"
+      grant_type: "password"
+      client_id: "admin-cli"
+  register: keycloak_token
+
+- name: Create Realm
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "https://{{ groups['podman'][0] }}/auth/admin/realms/"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      realm: AAP
+      enabled: true
+    status_code:
+      - 200
+      - 201
+  register: keycloak_realm_create
+
+- name: Create Client
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "https://{{ groups['podman'][0] }}/auth/admin/realms/AAP/clients"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      clientId: "{{ groups['tower_controller'][0] }}"
+      rootUrl: "https://{{ groups['tower_controller'][0] }}"
+      baseUrl: "/"
+      redirectUris:
+        - /sso/complete/saml/
+      protocol: "saml"
+      optionalClientScopes:
+        - role_list
+      protocolMappers:
+        - name: email
+          protocol: saml
+          protocolMapper: saml-user-property-mapper
+          consentRequired: false
+          config:
+            attribute.nameformat: Basic
+            user.attribute: email
+            friendly.name: Email
+            attribute.name: email
+        - name: username
+          protocol: saml
+          protocolMapper: saml-user-property-mapper
+          consentRequired: false
+          config:
+            attribute.nameformat: Basic
+            user.attribute: username
+            friendly.name: Username
+            attribute.name: username
+        - name: firstname
+          protocol: saml
+          protocolMapper: saml-user-property-mapper
+          consentRequired: false
+          config:
+            attribute.nameformat: Basic
+            user.attribute: firstName
+            friendly.name: First Name
+            attribute.name: first_name
+        - name: lastname
+          protocol: saml
+          protocolMapper: saml-user-property-mapper
+          consentRequired: false
+          config:
+            attribute.nameformat: Basic
+            user.attribute: lastName
+            friendly.name: Last Name
+            attribute.name: last_name
+        - name: Roles
+          protocol: saml
+          protocolMapper: saml-role-list-mapper
+          consentRequired: false
+          config:
+            single: 'true'
+            attribute.nameformat: Basic
+            friendly.name: Roles
+            attribute.name: Roles
+        - name: user_permanent_id
+          protocol: saml
+          protocolMapper: saml-user-attribute-mapper
+          consentRequired: false
+          config:
+            attribute.nameformat: Basic
+            user.attribute: uid
+            friendly.name: name_id
+            attribute.name: name_id
+    status_code:
+      - 200
+      - 201
+  register: keycloak_client_create
+
+- name: Update Client
+  ansible.builtin.uri:
+    method: PUT
+    body_format: json
+    url: "{{ keycloak_client_create.location }}"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      attributes:
+        saml.assertion.signature: "true"
+        saml.client.signature: "false"
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_client_update
+
+- name: Create test user
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "https://{{ groups['podman'][0] }}/auth/admin/realms/AAP/users"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      username: testuser
+      firstName: Test
+      lastName: User
+      email: testuser@example.com
+      enabled: true
+      credentials:
+        - type: password
+          value: pass
+          temporary: false
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_client_update
+
+- name: Get Realm
+  ansible.builtin.uri:
+    method: GET
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}/keys"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+  register: saml_realm_key_info
+
+- name: Get Client
+  ansible.builtin.uri:
+    method: GET
+    body_format: json
+    url: "{{ keycloak_client_create.location }}"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+  register: saml_client_info
+
+- name: Extract x509cert from Realm
+  set_fact:
+    saml_realm_x509cert: "{{ (saml_realm_key_info.json | to_yaml | regex_replace('(keys:)', 'saml_keys:') | from_yaml).saml_keys | selectattr('certificate', 'defined') | list | first }}"
+    saml_client_attributes: "{{ saml_client_info.json }}"
