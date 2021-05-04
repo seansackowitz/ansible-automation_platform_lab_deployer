@@ -1,5 +1,6 @@
 ---
 collections:
+  - name: awx.awx
   - name: redhat_cop.tower_configuration
   - name: community.vmware
   - name: community.general
