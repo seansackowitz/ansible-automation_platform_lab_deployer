@@ -5,9 +5,7 @@
     name: keycloak
     image: jboss/keycloak
     command: -b 0.0.0.0
-    publish:
-      - 80:8080
-      - 443:8443
+    pod: auth
     env:
       KEYCLOAK_USER: "{{ rhsso_config.admin_username }}"
       KEYCLOAK_PASSWORD: "{{ rhsso_config.admin_password }}"

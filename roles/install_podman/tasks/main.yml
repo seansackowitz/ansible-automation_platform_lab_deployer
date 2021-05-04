@@ -2,3 +2,14 @@
 - ansible.builtin.package:
     name: podman
     state: latest
+
+- name: Create a podman auth pod
+  containers.podman.podman_pod:
+    name: auth
+    state: started
+    ports:
+      - 80:8080
+      - 443:8443
+      - 389:389
+      - 636:636
+      - 6443:443

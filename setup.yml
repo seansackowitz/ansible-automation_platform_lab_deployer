@@ -3,6 +3,7 @@
   hosts: localhost
   tags: always
   connection: local
+  gather_facts: no
   tasks:
     - name: Set the id to be used for the lab
       set_fact:
@@ -11,11 +12,13 @@
     - ansible.builtin.add_host:
         hostname: "{{ item.name }}.{{ lab_dns_domain }}"
         groups: "{{ item.groups }}"
+        lab_id: "{{ lab_id }}"
       loop: "{{ vm_list }}"
 
 - name: Deploy lab environment
   hosts: localhost
   connection: local
+  gather_facts: no
   tasks:
     - ansible.builtin.include_role:
         name: "{{ hypervisor }}_create_vms"
@@ -48,6 +51,25 @@
   tasks:
     - ansible.builtin.include_role:
         name: install_podman
+        apply:
+          tags:
+            - podman
+      tags:
+        - podman
+    - ansible.builtin.include_role:
+        name: deploy_ldap
+        apply:
+          tags:
+            - ldap
+      tags:
+        - ldap
+    - ansible.builtin.include_role:
+        name: configure_ldap
+        apply:
+          tags:
+            - ldap
+      tags:
+        - ldap
     - ansible.builtin.include_role:
         name: deploy_keycloak
         apply:
@@ -61,17 +83,46 @@
 
 - name: Tower installer
   hosts: tower_controller
+  tags: tower
   gather_facts: no
   tasks:
     - ansible.builtin.include_role:
         name: install_tower
+        apply:
+          tags:
+            - tower
+      tags:
+        - tower
     - ansible.builtin.include_role:
         name: configure_tower
         apply:
-          tags: license
-      tags: license
+          tags:
+            - tower_license
+            - tower
+      tags:
+        - tower_license
+        - tower
     - ansible.builtin.include_role:
         name: configure_tower_saml
         apply:
-          tags: saml
-      tags: saml
+          tags:
+            - tower_saml
+            - tower
+      tags: 
+        - tower_saml
+        - tower
+
+- name: Print out links
+  hosts: localhost
+  tags: always
+  connection: local
+  gather_facts: no
+  tasks:
+    - debug:
+        msg:
+          - "The following are all the urls available to the deployed services:"
+          - "Ansible Tower:             https://{{ groups['tower_controller'][0] }}"
+          - "Ansible Automation Hub:    https://{{ groups['tower_hub'][0] }}"
+          - "Keycloak:                  https://{{ groups['podman'][0] }}"
+          - "Openldap:                  ldap://{{ groups['podman'][0] }}"
+          - "phpLDAPadmin:              https://{{ groups['podman'][0] }}:6443"

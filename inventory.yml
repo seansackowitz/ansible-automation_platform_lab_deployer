@@ -41,9 +41,82 @@ all:
       tower_admin_password: 
       tower_hub_admin_password: 
       tower_db_password: 
+      team_permissions:
+        - team: aap_security_admins
+          team_alias: Security Admins
+          organization: Security
+          roles:
+            - project_admin
+            - inventory_admin
+            - credential_admin
+            - workflow_admin
+            - notification_admin
+            - job_template_admin
+        - team: aap_security_help_desk
+          team_alias: Security Help Desk
+          organization: Security
+          roles:
+            - execute
+        - team: aap_network_admins
+          team_alias: Network Admins
+          organization: Network
+          roles:
+            - project_admin
+            - inventory_admin
+            - credential_admin
+            - workflow_admin
+            - notification_admin
+            - job_template_admin
+        - team: aap_network_users
+          team_alias: Network Users
+          organization: Network
+          roles:
+            - execute
+        - team: aap_network_audit
+          team_alias: Network Auditors
+          organization: Network
+          roles:
+            - auditor
+        - team: aap_network_help_desk
+          team_alias: Network Help Desk
+          organization: Network
+          roles:
+            - execute
     rhsso_config:
       admin_username: admin
       admin_password: 
+    ldap_config:
+      admin_password:
+      base_dn: "dc=aap,dc={{ lab_id }}{% for dc in lab_dns_domain.split('.') %},dc={{ dc }}{% endfor %}"
+      users:
+        - username: khoward
+          firstname: Kimberly
+          lastname: Howard
+          password: khowardAAP1
+          description: Kimberly is an admin of the Security team, but also needs to run some networking automation. As security, they also need to have audit ability on all organizations.
+          organizations:
+            - Security
+          groups:
+            - aap_security_admins
+            - aap_network_users
+            - aap_network_audit
+        - username: vbrooks
+          firstname: Victor
+          lastname: Brooks
+          password: vbrooksAAP1
+          description: Victor is an admin of the Help Desk who does not write their own automation, but needs to run some networking and security automation.
+          groups:
+            - aap_network_help_desk
+            - aap_security_help_desk
+        - username: ajones
+          firstname: Alfred
+          lastname: Jones
+          password: ajonesAAP1
+          description: Alfred is an admin of the Network team, and does not need access to any other team
+          organizations:
+            - Network
+          groups:
+            - aap_network_admins
     satellite_username: admin
     satellite_password: 
     vm_list:

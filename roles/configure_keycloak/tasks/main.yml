@@ -82,15 +82,15 @@
             user.attribute: lastName
             friendly.name: Last Name
             attribute.name: last_name
-        - name: Roles
+        - name: groups
           protocol: saml
-          protocolMapper: saml-role-list-mapper
+          protocolMapper: saml-group-membership-mapper
           consentRequired: false
           config:
             single: 'true'
             attribute.nameformat: Basic
-            friendly.name: Roles
-            attribute.name: Roles
+            full.path: 'false'
+            attribute.name: member
         - name: user_permanent_id
           protocol: saml
           protocolMapper: saml-user-attribute-mapper
@@ -100,6 +100,15 @@
             user.attribute: uid
             friendly.name: name_id
             attribute.name: name_id
+        - name: department
+          protocol: saml
+          protocolMapper: saml-user-attribute-mapper
+          consentRequired: false
+          config:
+            attribute.nameformat: Basic
+            user.attribute: department
+            friendly.name: department
+            attribute.name: department
     status_code:
       - 200
       - 201
@@ -123,29 +132,8 @@
       - 204
   register: keycloak_client_update
 
-- name: Create test user
-  ansible.builtin.uri:
-    method: POST
-    body_format: json
-    url: "https://{{ groups['podman'][0] }}/auth/admin/realms/AAP/users"
-    validate_certs: no
-    headers:
-      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
-    body:
-      username: testuser
-      firstName: Test
-      lastName: User
-      email: testuser@example.com
-      enabled: true
-      credentials:
-        - type: password
-          value: pass
-          temporary: false
-    status_code:
-      - 200
-      - 201
-      - 204
-  register: keycloak_client_update
+- name: Keycloak ldap user federation
+  include_tasks: ldap_federation.yml
 
 - name: Get Realm
   ansible.builtin.uri:

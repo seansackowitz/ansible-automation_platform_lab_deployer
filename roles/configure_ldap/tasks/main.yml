@@ -1,0 +1,75 @@
+---
+- block:
+    - package:
+        name: python3-ldap
+      become: yes
+
+    - name: Make sure we have a parent entry for users
+      community.general.ldap_entry:
+        dn: ou=users,{{ ldap_config.base_dn }}
+        objectClass:
+          - organizationalUnit
+          - top
+    
+    - name: Make sure we have a parent entry for groups
+      community.general.ldap_entry:
+        dn: ou=groups,{{ ldap_config.base_dn }}
+        objectClass:
+          - organizationalUnit
+          - top
+
+    - name: Add all users
+      community.general.ldap_entry:
+        dn: "cn={{ item.firstname }} {{item.lastname}},ou=users,{{ ldap_config.base_dn }}"
+        objectClass:
+          - inetOrgPerson
+          - organizationalPerson
+          - top
+        attributes:
+          sn: "{{ item.lastname }}"
+          uid: "{{ item.username }}"
+          mail: "{{ item.username }}@{{ lab_dns_domain }}"
+          description: "{{ item.description }}"
+          departmentNumber: "{{ item.organizations | default(omit) }}"
+      loop: "{{ ldap_config.users }}"
+      loop_control:
+        extended: yes
+
+    - name: Update all user passwords
+      community.general.ldap_passwd:
+        dn: "cn={{ item.firstname }} {{item.lastname}},ou=users,{{ ldap_config.base_dn }}"
+        passwd: "{{ item.password }}"
+      loop: "{{ ldap_config.users }}"
+
+    - set_fact:
+        all_groups: "{{ ldap_config.users | map(attribute='groups') | flatten | unique }}"
+
+    - set_fact:
+        user_to_group_mapping: "[ {%for group in all_groups %}{'group': '{{ group }}','users': [{% for user in ldap_config.users %}{% if group in user.groups %}'cn={{ user.firstname }} {{ user.lastname }},ou=users,{{ ldap_config.base_dn }}',{% endif %}{% endfor %}]},{% endfor %}]"
+
+    - name: "Add members to groups"
+      community.general.ldap_entry:
+        dn: "cn={{ item.group }},ou=groups,{{ ldap_config.base_dn }}"
+        objectClass:
+          - groupOfNames
+          - top
+        attributes:
+          member: "{{ item.users }}"
+      loop: "{{ user_to_group_mapping }}"
+
+  module_defaults:
+    community.general.ldap_entry:
+      bind_dn: "cn=admin,{{ ldap_config.base_dn }}"
+      bind_pw: "{{ ldap_config.admin_password }}"
+      validate_certs: no
+      server_uri: "ldap://{{ groups['podman'][0] }}"
+    community.general.ldap_passwd:
+      bind_dn: "cn=admin,{{ ldap_config.base_dn }}"
+      bind_pw: "{{ ldap_config.admin_password }}"
+      validate_certs: no
+      server_uri: "ldap://{{ groups['podman'][0] }}"
+    community.general.ldap_attrs:
+      bind_dn: "cn=admin,{{ ldap_config.base_dn }}"
+      bind_pw: "{{ ldap_config.admin_password }}"
+      validate_certs: no
+      server_uri: "ldap://{{ groups['podman'][0] }}"

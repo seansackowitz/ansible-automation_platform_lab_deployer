@@ -9,6 +9,10 @@
     tower_username: admin
     tower_password: "{{ tower_config.tower_admin_password }}"
 
+- set_fact:
+    tower_saml_teams: "{{ tower_saml_teams | default([]) }} + [ {'organization': '{{ item.organization }}', 'team': '{{ item.team }}', 'team_alias': '{{ item.team_alias | default(omit) }}'} ]"
+  loop: "{{ tower_config.team_permissions }}"
+
 - ansible.builtin.uri:
     method: PUT
     body_format: json
@@ -43,15 +47,18 @@
           attr_first_name: first_name
       SOCIAL_AUTH_SAML_ORGANIZATION_MAP:
         Default:
-          users: true
+          users: false
       SOCIAL_AUTH_SAML_ORGANIZATION_ATTR:
         saml_attr: department
-        saml_admin_attr: department
         remove: true
         remove_admins: false
       SOCIAL_AUTH_SAML_TEAM_ATTR:
-        saml_attr: role
+        saml_attr: member
         remove: false
-        team_org_map:
-          - team: development
-            organization: platform
+        team_org_map: "{{ tower_saml_teams }}"
+
+- name: Set all team permissions
+  include_tasks: team_permissions.yml
+  loop: "{{ tower_config.team_permissions }}"
+  loop_control:
+    loop_var: team

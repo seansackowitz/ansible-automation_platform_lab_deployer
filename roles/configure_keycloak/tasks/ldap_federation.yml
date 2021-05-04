@@ -1,0 +1,242 @@
+---
+- name: Get realm id
+  ansible.builtin.uri:
+    method: GET
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_realm
+
+- name: Create user federation
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}/components"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      name: ldap
+      providerId: ldap
+      providerType: org.keycloak.storage.UserStorageProvider
+      parentId: "{{ keycloak_realm.json.id }}"
+      config:
+        enabled:
+          - 'true'
+        priority:
+          - '0'
+        fullSyncPeriod:
+          - "-1"
+        changedSyncPeriod:
+          - "-1"
+        cachePolicy:
+          - DEFAULT
+        evictionDay: []
+        evictionHour: []
+        evictionMinute: []
+        maxLifespan: []
+        batchSizeForSync:
+          - '1000'
+        editMode: ['READ_ONLY']
+        importEnabled:
+          - 'true'
+        syncRegistrations:
+          - 'false'
+        vendor:
+          - other
+        usePasswordModifyExtendedOp: []
+        usernameLDAPAttribute:
+          - uid
+        rdnLDAPAttribute:
+          - uid
+        uuidLDAPAttribute:
+          - uid
+        userObjectClasses:
+          - inetOrgPerson, organizationalPerson
+        connectionUrl:
+          - ldap://localhost
+        usersDn:
+          - "ou=users,{{ ldap_config.base_dn }}"
+        authType:
+          - simple
+        startTls: []
+        bindDn:
+          - "cn=admin,{{ ldap_config.base_dn }}"
+        bindCredential:
+          - "{{ ldap_config.admin_password }}"
+        customUserSearchFilter: []
+        searchScope:
+          - '1'
+        validatePasswordPolicy:
+          - 'false'
+        trustEmail:
+          - 'false'
+        useTruststoreSpi:
+          - ldapsOnly
+        connectionPooling:
+          - 'true'
+        connectionPoolingAuthentication: []
+        connectionPoolingDebug: []
+        connectionPoolingInitSize: []
+        connectionPoolingMaxSize: []
+        connectionPoolingPrefSize: []
+        connectionPoolingProtocol: []
+        connectionPoolingTimeout: []
+        connectionTimeout: []
+        readTimeout: []
+        pagination:
+          - 'true'
+        allowKerberosAuthentication:
+          - 'false'
+        serverPrincipal: []
+        keyTab: []
+        kerberosRealm: []
+        debug:
+          - 'false'
+        useKerberosForPasswordAuthentication:
+          - 'false'
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_provider_create
+
+- name: Get ldap component id
+  ansible.builtin.uri:
+    method: GET
+    body_format: json
+    url: "{{ keycloak_provider_create.location }}"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_provider_component
+
+- name: Create ldap department mapping
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}/components"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      config:
+        user.model.attribute:
+          - department
+        ldap.attribute:
+          - departmentNumber
+        read.only:
+          - 'true'
+        always.read.value.from.ldap:
+          - 'false'
+        is.mandatory.in.ldap:
+          - 'false'
+        is.binary.attribute:
+          - 'false'
+      name: department
+      providerId: user-attribute-ldap-mapper
+      providerType: org.keycloak.storage.ldap.mappers.LDAPStorageMapper
+      parentId: "{{ keycloak_provider_component.json.id }}"
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_group_mapper_create
+
+- name: Create ldap group mapping
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}/components"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    body:
+      config:
+        groups.dn:
+        - "ou=groups,{{ ldap_config.base_dn }}"
+        group.name.ldap.attribute:
+        - cn
+        group.object.classes:
+        - groupOfNames
+        preserve.group.inheritance:
+        - 'true'
+        ignore.missing.groups:
+        - 'false'
+        membership.ldap.attribute:
+        - member
+        membership.attribute.type:
+        - DN
+        membership.user.ldap.attribute:
+        - uid
+        groups.ldap.filter: []
+        mode:
+        - READ_ONLY
+        user.roles.retrieve.strategy:
+        - LOAD_GROUPS_BY_MEMBER_ATTRIBUTE
+        memberof.ldap.attribute:
+        - memberOf
+        mapped.group.attributes: []
+        drop.non.existing.groups.during.sync:
+        - 'false'
+        groups.path:
+        - "/"
+      name: groups
+      providerId: group-ldap-mapper
+      providerType: org.keycloak.storage.ldap.mappers.LDAPStorageMapper
+      parentId: "{{ keycloak_provider_component.json.id }}"
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_group_mapper_create
+
+- name: Get group mapper component id
+  ansible.builtin.uri:
+    method: GET
+    body_format: json
+    url: "{{ keycloak_group_mapper_create.location }}"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    status_code:
+      - 200
+      - 201
+      - 204
+  register: keycloak_group_mapper
+
+- name: Sync groups
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}/user-storage/{{ keycloak_provider_component.json.id }}/mappers/{{ keycloak_group_mapper.json.id }}/sync?direction=fedToKeycloak"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    status_code:
+      - 200
+      - 201
+      - 204
+
+- name: Sync users
+  ansible.builtin.uri:
+    method: POST
+    body_format: json
+    url: "{{ keycloak_realm_create.location }}/user-storage/{{ keycloak_provider_component.json.id }}/sync?action=triggerFullSync"
+    validate_certs: no
+    headers:
+      Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+    status_code:
+      - 200
+      - 201
+      - 204

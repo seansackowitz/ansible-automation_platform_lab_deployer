@@ -1,0 +1,25 @@
+---
+- name: deploy openldap container
+  containers.podman.podman_container:
+    name: openldap
+    image: osixia/openldap:latest
+    pod: auth
+    env:
+      LDAP_ORGANISATION: "AAP {{ lab_id }}"
+      LDAP_DOMAIN: "aap.{{ lab_id }}.{{ lab_dns_domain }}"
+      LDAP_ADMIN_PASSWORD: "{{ ldap_config.admin_password }}"
+    volumes:
+      - /var/lib/ldap
+      - /etc/ldap/slapd.d
+  
+- name: Wait for openldap to start up
+  wait_for:
+    port: 389
+
+- name: deploy phpldapadmin container
+  containers.podman.podman_container:
+    name: phpldapadmin
+    image: osixia/phpldapadmin:latest
+    pod: auth
+    env:
+      PHPLDAPADMIN_LDAP_HOSTS: localhost

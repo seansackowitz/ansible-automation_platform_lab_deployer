@@ -1,0 +1,28 @@
+---
+- name: Ensure Organization exists
+  awx.awx.tower_organization:
+    tower_host: https://{{ groups['tower_controller'][0] }}
+    validate_certs: no
+    tower_oauthtoken: "{{ tower_token }}"
+    name: "{{ team.organization }}"
+    state: present
+
+- name: Ensure Team exists
+  awx.awx.tower_team:
+    tower_host: https://{{ groups['tower_controller'][0] }}
+    validate_certs: no
+    tower_oauthtoken: "{{ tower_token }}"
+    name: "{{ team.team_alias }}"
+    organization: "{{ team.organization }}"
+    state: present
+
+- name: Add roles to teams
+  awx.awx.tower_role:
+    tower_host: https://{{ groups['tower_controller'][0] }}
+    validate_certs: no
+    tower_oauthtoken: "{{ tower_token }}"
+    team: "{{ team.team_alias }}"
+    organization: "{{ team.organization }}"
+    role: "{{ item }}"
+    state: present
+  loop: "{{ team.roles }}"
